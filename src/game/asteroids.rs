@@ -42,7 +42,11 @@ impl Plugin for AsteroidsPlugin {
     }
 }
 
-fn on_enter(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<ColorMaterial>>) {
+fn on_enter(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>
+) {
 
     let mut ortho_camera = OrthographicCameraBundle::new_2d();
     ortho_camera.orthographic_projection.scale = 0.4;
@@ -102,7 +106,11 @@ fn on_exit(
     asteroids_data.material_handle = None;
 }
 
-fn on_update(mut query: Query<(&mut Transform, &mut Player)>, keys: Res<Input<KeyCode>>, time: Res<Time>) {
+fn on_update(
+    mut query: Query<(&mut Transform, &mut Player)>,
+    keys: Res<Input<KeyCode>>,
+    time: Res<Time>
+) {
 
     let (mut transform, mut player) = query.single_mut();
     let mut accelerated = false;

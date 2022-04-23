@@ -37,16 +37,19 @@ impl Plugin for AsteroidsPlugin {
                 SystemSet::on_enter(GameState::Asteroids)
                     .with_system(spawn_player)
                     .with_system(spawn_ui
-                                    .after(spawn_player)))
+                                    .after(spawn_player))
+            )
             .add_system_set(
                 SystemSet::on_exit(GameState::Asteroids)
-                    .with_system(on_exit))
+                    .with_system(on_exit)
+            )
             .add_system_set(
                 SystemSet::on_update(GameState::Asteroids)
                     .with_system(rotation)
                     .with_system(acceleration
                         .before(rotation))
-                    .with_system(handle_start_pause));
+                    .with_system(handle_start_pause)
+            );
     }
 }
 

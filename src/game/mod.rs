@@ -1,6 +1,7 @@
 use bevy::{prelude::*, app::PluginGroupBuilder};
 
 mod menu;
+mod settings;
 mod pause;
 mod asteroids;
 
@@ -35,6 +36,7 @@ impl PluginGroup for GamePlugins {
         group
             .add(BasePlugin)
             .add(menu::MenuPlugin)
+            .add(settings::SettingsPlugin)
             .add(pause::PausePlugin)
             .add(asteroids::AsteroidsPlugin);
     }

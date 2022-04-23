@@ -24,14 +24,17 @@ impl Plugin for PausePlugin {
         app
             .add_system_set(
                 SystemSet::on_enter(GameState::Pause)
-                    .with_system(on_enter))
+                    .with_system(on_enter)
+            )
             .add_system_set(
                 SystemSet::on_exit(GameState::Pause)
-                    .with_system(on_exit))
+                    .with_system(on_exit)
+            )
             .add_system_set(
                 SystemSet::on_update(GameState::Pause)
                     .with_system(handle_keyboard)
-                    .with_system(handle_buttons));
+                    .with_system(handle_buttons)
+            );
     }
 }
 

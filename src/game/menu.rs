@@ -12,20 +12,23 @@ enum MenuButton {
     Quit,
 }
 
-pub struct MenuPlugin;
+pub(crate) struct MenuPlugin;
 
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_system_set(
                 SystemSet::on_enter(GameState::Menu)
-                    .with_system(on_enter))
+                    .with_system(on_enter)
+            )
             .add_system_set(
                 SystemSet::on_exit(GameState::Menu)
-                    .with_system(on_exit))
+                    .with_system(on_exit)
+            )
             .add_system_set(
                 SystemSet::on_update(GameState::Menu)
-                    .with_system(handle_buttons));
+                    .with_system(handle_buttons)
+            );
     }
 }
 
@@ -130,7 +133,7 @@ fn handle_buttons(
                 MenuButton::Asteroids =>
                     game_state.set(GameState::Asteroids).unwrap(),
                 MenuButton::Settings =>
-                    game_state.push(GameState::Settings).unwrap(),
+                    game_state.set(GameState::Settings).unwrap(),
                 MenuButton::Quit =>
                     app_exit_events.send(AppExit),
             }

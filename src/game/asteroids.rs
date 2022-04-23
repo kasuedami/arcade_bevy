@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use bevy::render::mesh::{Indices, Mesh};
 use bevy::render::mesh::PrimitiveTopology;
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
-
 use crate::game::GameState;
+use crate::game::pause::handle_start_pause;
 
 pub struct AsteroidsPlugin;
 
@@ -38,7 +38,8 @@ impl Plugin for AsteroidsPlugin {
                     .with_system(on_exit))
             .add_system_set(
                 SystemSet::on_update(GameState::Asteroids)
-                    .with_system(on_update));
+                    .with_system(on_update)
+                    .with_system(handle_start_pause));
     }
 }
 
@@ -160,6 +161,12 @@ fn on_update(
 
     transform.translation.y += player.velocity.y;
     transform.translation.x += player.velocity.x;
+}
+
+fn pause_starter(keys: Res<Input<KeyCode>>, mut game_state: ResMut<State<GameState>>) {
+    if keys.just_pressed(KeyCode::Escape) {
+        game_state.push(GameState::Pause).unwrap();
+    }
 }
 
 fn create_fighter() -> Mesh {

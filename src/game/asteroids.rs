@@ -8,13 +8,13 @@ use crate::game::GameState;
 pub struct AsteroidsPlugin;
 
 const PLAYER_ACCELERATION: f32 = 1.0;
-const PLAYER_DECELERATION: f32 = 1.0;
+const PLAYER_DECELERATION: f32 = 0.2;
 const PLAYER_ROT_ACC: f32 = 0.05;
 const PLAYER_ROT_DEC: f32 = 0.5;
 
 #[derive(Component, Clone, Copy)]
 struct Player {
-    velocity: f32,
+    velocity: Vec2,
     rotation: f32,
 }
 
@@ -69,7 +69,7 @@ fn on_enter(
             ..Default::default()
         })
         .insert(Player {
-            velocity: 0.0,
+            velocity: Vec2::ZERO,
             rotation: 0.0,
         });
 }
@@ -113,25 +113,8 @@ fn on_update(
 ) {
 
     let (mut transform, mut player) = query.single_mut();
-    let mut accelerated = false;
     let mut rotated = false;
-
-    if keys.pressed(KeyCode::W) {
-        player.velocity += PLAYER_ACCELERATION * time.delta().as_secs_f32();
-        accelerated = true;
-    }
-
-    if keys.pressed(KeyCode::S) {
-        player.velocity -= PLAYER_ACCELERATION * time.delta().as_secs_f32();
-        accelerated = true;
-    }
-
-    if !accelerated {
-        let reduction = player.velocity * PLAYER_DECELERATION;
-        player.velocity -= reduction * time.delta().as_secs_f32();
-    }
-
-    transform.translation.y += player.velocity;
+    let mut accelerated = false;
 
     if keys.pressed(KeyCode::D) {
         if player.rotation > -0.05 {
@@ -154,6 +137,29 @@ fn on_update(
 
     let last_rot = transform.rotation.to_euler(EulerRot::ZYX);
     transform.rotation = Quat::from_euler(EulerRot::ZYX, last_rot.0 + player.rotation, 0.0, 0.0);
+
+    let new_rot = transform.rotation.to_euler(EulerRot::ZYX);
+    let direction_vec = Vec2::new(-new_rot.0.sin(), new_rot.0.cos());
+
+    if keys.pressed(KeyCode::W) {
+        let acc = direction_vec * (PLAYER_ACCELERATION * time.delta().as_secs_f32());
+        player.velocity += acc;
+        accelerated = true;
+    }
+
+    if keys.pressed(KeyCode::S) {
+        let acc = direction_vec * (PLAYER_ACCELERATION * time.delta().as_secs_f32());
+        player.velocity -= acc;
+        accelerated = true;
+    }
+
+    if !accelerated {
+        let reduction = player.velocity * PLAYER_DECELERATION;
+        player.velocity -= reduction * time.delta().as_secs_f32();
+    }
+
+    transform.translation.y += player.velocity.y;
+    transform.translation.x += player.velocity.x;
 }
 
 fn create_fighter() -> Mesh {

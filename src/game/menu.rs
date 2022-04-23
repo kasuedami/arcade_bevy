@@ -46,7 +46,7 @@ fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
                 justify_content: JustifyContent::SpaceBetween,
                 ..Default::default()
             },
-            color: Color::RED.into(),
+            color: Color::BLACK.into(),
             ..Default::default()
         })
         .insert(MenuRoot)
@@ -80,6 +80,35 @@ fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
                             spawn_button(&mut parent, font.clone(), MenuButton::Quit);
                         });
 
+                });
+
+            parent
+                .spawn_bundle(NodeBundle {
+                    style: Style {
+                        size: Size::new(Val::Percent(100.0), Val::Px(200.0)),
+                        align_items: AlignItems::Center,
+                        align_self: AlignSelf::FlexEnd,
+                        justify_content: JustifyContent::Center,
+                        border: Rect::all(Val::Px(50.0)),
+                        ..Default::default()
+                    },
+                    color: Color::rgba(0.0, 0.0, 0.0, 0.0).into(),
+                    ..Default::default()
+                })
+                .with_children(|parent| {
+                   parent
+                        .spawn_bundle(TextBundle {
+                            text: Text::with_section(
+                                "Arcade Games",
+                                TextStyle {
+                                    font: font.clone(),
+                                    font_size: 80.0,
+                                    color: Color::rgb(0.9, 0.9, 0.9)
+                                },
+                                Default::default()
+                            ),
+                            ..Default::default()
+                        });
                 });
         });
 }

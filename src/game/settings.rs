@@ -8,7 +8,20 @@ struct SettingsItem;
 enum SettingsButton {
     NextSize,
     PreviousSize,
+    Apply,
     Exit,
+}
+
+#[derive(Component, Clone, Copy)]
+struct ScreenSizeDisplay;
+
+#[derive(Clone, Copy)]
+enum ScreenSize {
+    Size1280x1024,
+    Size1600x1200,
+    Size1680x1050,
+    Size1920x1080,
+    Size1920x1200,
 }
 
 pub(crate) struct SettingsPlugin;
@@ -19,6 +32,7 @@ impl Plugin for SettingsPlugin {
             .add_system_set(
                 SystemSet::on_enter(GameState::Settings)
                     .with_system(spawn_ui)
+                    .with_system(insert_resource)
             )
             .add_system_set(
                 SystemSet::on_exit(GameState::Settings)
@@ -29,6 +43,10 @@ impl Plugin for SettingsPlugin {
                     .with_system(handle_buttons)
             );
     }
+}
+
+fn insert_resource(mut commands: Commands) {
+    commands.insert_resource(ScreenSize::Size1280x1024);
 }
 
 fn spawn_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -97,7 +115,7 @@ fn spawn_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                             parent
                                 .spawn_bundle(NodeBundle {
                                     style: Style {
-                                        size: Size::new(Val::Percent(100.0), Val::Px(120.0)),
+                                        size: Size::new(Val::Percent(100.0), Val::Px(180.0)),
                                         flex_direction: FlexDirection::ColumnReverse,
                                         justify_content: JustifyContent::FlexStart,
                                         align_items: AlignItems::FlexStart,
@@ -110,7 +128,7 @@ fn spawn_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                                     parent
                                         .spawn_bundle(NodeBundle {
                                             style: Style {
-                                                size: Size::new(Val::Percent(100.0), Val::Px(66.0)),
+                                                size: Size::new(Val::Percent(100.0), Val::Px(60.0)),
                                                 justify_content: JustifyContent::FlexStart,
                                                 ..Default::default()
                                             },
@@ -137,7 +155,10 @@ fn spawn_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                                                 ..Default::default()
                                             },
                                             ..Default::default()
-                                        });
+                                        })
+                                        .insert(ScreenSizeDisplay);
+
+                                    spawn_button(parent, font_handle.clone(), SettingsButton::Apply);
                                 });
 
                             spawn_button(parent, font_handle.clone(), SettingsButton::Exit);
@@ -153,16 +174,32 @@ fn remove_ui(mut commands: Commands, query: Query<Entity, With<SettingsItem>>) {
 }
 
 fn handle_buttons(
-    mut query: Query<(&Interaction, &mut UiColor, &SettingsButton)>,
-    mut game_state: ResMut<State<GameState>>
+    mut button_query: Query<(&Interaction, &mut UiColor, &SettingsButton), Changed<Interaction>>,
+    mut display_text_query: Query<&mut Text, With<ScreenSizeDisplay>>,
+    mut game_state: ResMut<State<GameState>>,
+    mut screen_size: ResMut<ScreenSize>,
+    mut windows: ResMut<Windows>
 ) {
 
-    query.for_each_mut(|(interaction, mut color, menu_button)| match interaction {
+    button_query.for_each_mut(|(interaction, mut color, menu_button)| match interaction {
         Interaction::Clicked => {
 
             match menu_button {
-                SettingsButton::NextSize => {},
-                SettingsButton::PreviousSize => {},
+                SettingsButton::NextSize => {
+                    *screen_size = next_screen_size(&screen_size);
+                    let mut text = display_text_query.single_mut();
+                    text.sections[0].value = text_for_screen_size(&*screen_size);
+                },
+                SettingsButton::PreviousSize => {
+                    *screen_size = previous_screen_size(&screen_size);
+                    let mut text = display_text_query.single_mut();
+                    text.sections[0].value = text_for_screen_size(&*screen_size);
+                },
+                SettingsButton::Apply => {
+                    let window = windows.get_primary_mut().unwrap();
+                    let (width, height) = resoultion_for_screen_size(&screen_size);
+                    window.set_resolution(width, height);
+                },
                 SettingsButton::Exit => {
                     game_state.set(GameState::Menu).unwrap();
                 },
@@ -198,6 +235,7 @@ fn spawn_button(commands: &mut ChildBuilder, font: Handle<Font>, button_type: Se
                 match button_type {
                     SettingsButton::NextSize => "=>",
                     SettingsButton::PreviousSize => "<=",
+                    SettingsButton::Apply => "Apply",
                     SettingsButton::Exit => "Exit",
                 },
                 TextStyle {
@@ -210,4 +248,44 @@ fn spawn_button(commands: &mut ChildBuilder, font: Handle<Font>, button_type: Se
             ..Default::default()
         });
     });
+}
+
+fn next_screen_size(screen_size: &ScreenSize) -> ScreenSize {
+    match *screen_size {
+        ScreenSize::Size1280x1024 => ScreenSize::Size1600x1200,
+        ScreenSize::Size1600x1200 => ScreenSize::Size1680x1050,
+        ScreenSize::Size1680x1050 => ScreenSize::Size1920x1080,
+        ScreenSize::Size1920x1080 => ScreenSize::Size1920x1200,
+        ScreenSize::Size1920x1200 => ScreenSize::Size1280x1024,
+    }
+}
+
+fn previous_screen_size(screen_size: &ScreenSize) -> ScreenSize {
+    match *screen_size {
+        ScreenSize::Size1280x1024 => ScreenSize::Size1920x1200,
+        ScreenSize::Size1600x1200 => ScreenSize::Size1280x1024,
+        ScreenSize::Size1680x1050 => ScreenSize::Size1600x1200,
+        ScreenSize::Size1920x1080 => ScreenSize::Size1680x1050,
+        ScreenSize::Size1920x1200 => ScreenSize::Size1920x1080,
+    }
+}
+
+fn resoultion_for_screen_size(screen_size: &ScreenSize) -> (f32, f32) {
+    match *screen_size {
+        ScreenSize::Size1280x1024 => (1280.0, 1024.0),
+        ScreenSize::Size1600x1200 => (1600.0, 1200.0),
+        ScreenSize::Size1680x1050 => (1680.0, 1050.0),
+        ScreenSize::Size1920x1080 => (1920.0, 1080.0),
+        ScreenSize::Size1920x1200 => (1920.0, 1200.0),
+    }
+}
+
+fn text_for_screen_size(screen_size: &ScreenSize) -> String {
+    match *screen_size {
+        ScreenSize::Size1280x1024 => "1280.0 x 1024.0".to_string(),
+        ScreenSize::Size1600x1200 => "1600.0 x 1200.0".to_string(),
+        ScreenSize::Size1680x1050 => "1680.0 x 1050.0".to_string(),
+        ScreenSize::Size1920x1080 => "1920.0 x 1080.0".to_string(),
+        ScreenSize::Size1920x1200 => "1920.0 x 1200.0".to_string(),
+    }
 }

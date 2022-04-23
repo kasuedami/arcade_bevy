@@ -125,7 +125,6 @@ fn handle_buttons(
 
     query.for_each_mut(|(interaction, mut color, menu_button)| match interaction {
         Interaction::Clicked => {
-            //handle press
 
             match menu_button {
                 MenuButton::Asteroids =>

@@ -11,6 +11,12 @@ pub struct PauseExited (Duration);
 #[derive(Component)]
 struct PauseRoot;
 
+#[derive(Component, Clone, Copy)]
+enum PauseButton {
+    Continue,
+    Quit,
+}
+
 pub struct PausePlugin;
 
 impl Plugin for PausePlugin {
@@ -20,11 +26,12 @@ impl Plugin for PausePlugin {
                 SystemSet::on_enter(GameState::Pause)
                     .with_system(on_enter))
             .add_system_set(
-                SystemSet::on_update(GameState::Pause)
-                    .with_system(handle_keyboard))
-            .add_system_set(
                 SystemSet::on_exit(GameState::Pause)
-                    .with_system(on_exit));
+                    .with_system(on_exit))
+            .add_system_set(
+                SystemSet::on_update(GameState::Pause)
+                    .with_system(handle_keyboard)
+                    .with_system(handle_buttons));
     }
 }
 
@@ -38,12 +45,36 @@ fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>, time: Res<Ti
         .spawn_bundle(NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                flex_direction: FlexDirection::ColumnReverse,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::FlexStart,
                 ..Default::default()
             },
             color: Color::rgba(0.2, 0.2, 0.2, 0.8).into(),
             ..Default::default()
         })
-        .insert(PauseRoot);
+        .insert(PauseRoot)
+        .with_children(|mut parent| {
+            parent
+                .spawn_bundle(TextBundle {
+                    text: Text::with_section(
+                        "Paused",
+                        TextStyle {
+                            font: font.clone(),
+                            font_size: 80.0,
+                            color: Color::rgb(0.9, 0.9, 0.9)
+                        },
+                        Default::default()
+                    ),
+                    style: Style {
+                        margin: Rect::all(Val::Px(100.0)),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                });
+            spawn_button(&mut parent, font.clone(), PauseButton::Continue);
+            spawn_button(&mut parent, font.clone(), PauseButton::Quit);
+        });
 }
 
 fn handle_keyboard(keys: Res<Input<KeyCode>>, mut game_state: ResMut<State<GameState>>, time: Res<Time>, entered: Res<PauseEntered>) {
@@ -82,4 +113,61 @@ pub(in crate::game) fn handle_start_pause(
         },
     }
 
+}
+
+fn handle_buttons(
+    mut game_state: ResMut<State<GameState>>,
+    mut query: Query<(&Interaction, &mut UiColor, &PauseButton)>,
+) {
+
+    query.for_each_mut(|(interaction, mut color, pause_button)| match interaction {
+        Interaction::Clicked => {
+
+            match pause_button {
+                PauseButton::Continue =>
+                    game_state.pop().unwrap(),
+                PauseButton::Quit =>
+                    game_state.replace(GameState::Menu).unwrap(),
+            }
+
+        }
+        Interaction::Hovered => {
+        }
+        Interaction::None => {
+        }
+    });
+}
+
+fn spawn_button(commands: &mut ChildBuilder, font: Handle<Font>, button_type: PauseButton) {
+    commands
+        .spawn_bundle(ButtonBundle {
+            style: Style {
+                size: Size::new(Val::Px(200.0), Val::Px(50.0)),
+                margin: Rect::all(Val::Px(10.0)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..Default::default()
+            },
+            color: Color::rgb(0.3, 0.3, 0.3).into(),
+            ..Default::default()
+        })
+        .insert(button_type)
+        .with_children(|parent| {
+            parent
+                .spawn_bundle(TextBundle {
+                    text: Text::with_section(
+                        match button_type {
+                            PauseButton::Continue => "Continue",
+                            PauseButton::Quit => "Quit",
+                        },
+                        TextStyle {
+                            font: font.clone(),
+                            font_size: 35.0,
+                            color: Color::rgb(0.9, 0.9, 0.9)
+                        },
+                        Default::default()
+                    ),
+                    ..Default::default()
+                });
+        });
 }

@@ -163,12 +163,6 @@ fn on_update(
     transform.translation.x += player.velocity.x;
 }
 
-fn pause_starter(keys: Res<Input<KeyCode>>, mut game_state: ResMut<State<GameState>>) {
-    if keys.just_pressed(KeyCode::Escape) {
-        game_state.push(GameState::Pause).unwrap();
-    }
-}
-
 fn create_fighter() -> Mesh {
     let mut mesh = Mesh::new(PrimitiveTopology::LineStrip);
 

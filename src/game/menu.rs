@@ -1,13 +1,9 @@
 use bevy::prelude::*;
 use bevy::app::AppExit;
-use crate::game::GameState;
-
-const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
-const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
-const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.35, 0.35);
+use crate::game::{button_colors, GameState};
 
 #[derive(Component)]
-struct MenuRoot;
+struct MenuItem;
 
 #[derive(Component, Clone, Copy)]
 enum MenuButton {
@@ -37,7 +33,9 @@ fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     let font: Handle<Font> = asset_server.load("fonts/Regular.ttf");
 
-    commands.spawn_bundle(UiCameraBundle::default());
+    commands
+        .spawn_bundle(UiCameraBundle::default())
+            .insert(MenuItem);
 
     commands
         .spawn_bundle(NodeBundle {
@@ -49,7 +47,7 @@ fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
             color: Color::BLACK.into(),
             ..Default::default()
         })
-        .insert(MenuRoot)
+        .insert(MenuItem)
         .with_children(|parent| {
             parent
                 .spawn_bundle(NodeBundle {
@@ -113,8 +111,10 @@ fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
         });
 }
 
-fn on_exit(mut commands: Commands, query: Query<Entity, With<MenuRoot>>) {
-    commands.entity(query.single()).despawn_recursive();
+fn on_exit(mut commands: Commands, query: Query<Entity, With<MenuItem>>) {
+    query.for_each(|entity| {
+        commands.entity(entity).despawn_recursive();
+    });
 }
 
 fn handle_buttons(
@@ -135,13 +135,13 @@ fn handle_buttons(
                     app_exit_events.send(AppExit),
             }
 
-            *color = PRESSED_BUTTON.into();
+            *color = button_colors::NORMAL_BUTTON.into();
         }
         Interaction::Hovered => {
-            *color = HOVERED_BUTTON.into();
+            *color = button_colors::HOVERED_BUTTON.into();
         }
         Interaction::None => {
-            *color = NORMAL_BUTTON.into();
+            *color = button_colors::NORMAL_BUTTON.into();
         }
     });
 }
@@ -155,7 +155,7 @@ fn spawn_button(commands: &mut ChildBuilder, font: Handle<Font>, button_type: Me
             align_items: AlignItems::Center,
             ..Default::default()
         },
-        color: NORMAL_BUTTON.into(),
+        color: button_colors::NORMAL_BUTTON.into(),
         ..Default::default()
     })
     .insert(button_type)

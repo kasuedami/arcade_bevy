@@ -1,15 +1,15 @@
 use bevy::prelude::*;
 use std::time::Duration;
-use crate::game::GameState;
+use crate::game::{button_colors, GameState};
 
 const MINIMUM_TIME: Duration = Duration::from_millis(200);
-pub const PAUSE_COOLDOWN: Duration = Duration::from_millis(200);
+const PAUSE_COOLDOWN: Duration = Duration::from_millis(200);
 
 struct PauseEntered (Duration);
-pub struct PauseExited (Duration);
+pub(in crate::game) struct PauseExited (Duration);
 
 #[derive(Component)]
-struct PauseRoot;
+struct PauseItem;
 
 #[derive(Component, Clone, Copy)]
 enum PauseButton {
@@ -42,18 +42,23 @@ fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>, time: Res<Ti
     let font: Handle<Font> = asset_server.load("fonts/Regular.ttf");
 
     commands
+        .spawn_bundle(UiCameraBundle::default())
+        .insert(PauseItem);
+
+    commands
         .spawn_bundle(NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
                 flex_direction: FlexDirection::ColumnReverse,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::FlexStart,
+              position_type: PositionType::Absolute,
                 ..Default::default()
             },
             color: Color::rgba(0.2, 0.2, 0.2, 0.8).into(),
             ..Default::default()
         })
-        .insert(PauseRoot)
+        .insert(PauseItem)
         .with_children(|mut parent| {
             parent
                 .spawn_bundle(TextBundle {
@@ -86,8 +91,12 @@ fn handle_keyboard(keys: Res<Input<KeyCode>>, mut game_state: ResMut<State<GameS
     }
 }
 
-fn on_exit(mut commands: Commands, query: Query<Entity, With<PauseRoot>>, time: Res<Time>) {
-    commands.entity(query.single()).despawn_recursive();
+fn on_exit(mut commands: Commands, query: Query<Entity, With<PauseItem>>, time: Res<Time>) {
+
+    query.for_each(|entity| {
+        commands.entity(entity).despawn_recursive();
+    });
+
     commands.remove_resource::<PauseEntered>();
     commands.insert_resource(PauseExited(time.time_since_startup()));
 }
@@ -130,10 +139,13 @@ fn handle_buttons(
                     game_state.replace(GameState::Menu).unwrap(),
             }
 
+            *color = button_colors::PRESSED_BUTTON.into();
         }
         Interaction::Hovered => {
+            *color = button_colors::HOVERED_BUTTON.into();
         }
         Interaction::None => {
+            *color = button_colors::NORMAL_BUTTON.into();
         }
     });
 }
@@ -148,7 +160,7 @@ fn spawn_button(commands: &mut ChildBuilder, font: Handle<Font>, button_type: Pa
                 justify_content: JustifyContent::Center,
                 ..Default::default()
             },
-            color: Color::rgb(0.3, 0.3, 0.3).into(),
+            color: button_colors::NORMAL_BUTTON.into(),
             ..Default::default()
         })
         .insert(button_type)
@@ -163,7 +175,7 @@ fn spawn_button(commands: &mut ChildBuilder, font: Handle<Font>, button_type: Pa
                         TextStyle {
                             font: font.clone(),
                             font_size: 35.0,
-                            color: Color::rgb(0.9, 0.9, 0.9)
+                            color: Color::rgb(0.9, 0.9, 0.9),
                         },
                         Default::default()
                     ),

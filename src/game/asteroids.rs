@@ -13,6 +13,9 @@ const PLAYER_ROT_ACC: f32 = 0.05;
 const PLAYER_ROT_DEC: f32 = 0.5;
 
 #[derive(Component, Clone, Copy)]
+struct AsteroidsItem;
+
+#[derive(Component, Clone, Copy)]
 struct Player {
     velocity: Vec2,
     rotation: f32,
@@ -32,18 +35,22 @@ impl Plugin for AsteroidsPlugin {
             })
             .add_system_set(
                 SystemSet::on_enter(GameState::Asteroids)
-                    .with_system(on_enter))
+                    .with_system(spawn_player)
+                    .with_system(spawn_ui
+                                    .after(spawn_player)))
             .add_system_set(
                 SystemSet::on_exit(GameState::Asteroids)
                     .with_system(on_exit))
             .add_system_set(
                 SystemSet::on_update(GameState::Asteroids)
-                    .with_system(on_update)
+                    .with_system(rotation)
+                    .with_system(acceleration
+                        .before(rotation))
                     .with_system(handle_start_pause));
     }
 }
 
-fn on_enter(
+fn spawn_player(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>
@@ -52,8 +59,9 @@ fn on_enter(
     let mut ortho_camera = OrthographicCameraBundle::new_2d();
     ortho_camera.orthographic_projection.scale = 0.4;
 
-    commands.spawn_bundle(ortho_camera);
-    commands.spawn_bundle(UiCameraBundle::default());
+    commands
+        .spawn_bundle(ortho_camera)
+        .insert(AsteroidsItem);
 
     let fighter_mesh = create_fighter();
     let material = ColorMaterial {
@@ -72,6 +80,55 @@ fn on_enter(
         .insert(Player {
             velocity: Vec2::ZERO,
             rotation: 0.0,
+        })
+        .insert(AsteroidsItem);
+}
+
+fn spawn_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
+
+    let font_handle = asset_server.load("fonts/Regular.ttf");
+
+    commands
+        .spawn_bundle(UiCameraBundle::default())
+        .insert(AsteroidsItem);
+
+    commands
+        .spawn_bundle(NodeBundle {
+            style: Style {
+                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                ..Default::default()
+            },
+            color: Color::NONE.into(),
+            ..Default::default()
+        })
+        .insert(AsteroidsItem)
+        .with_children(|parent| {
+            parent
+                .spawn_bundle(NodeBundle {
+                    style: Style {
+                        size: Size::new(Val::Percent(30.0), Val::Percent(100.0)),
+                        flex_direction: FlexDirection::ColumnReverse,
+                        align_items: AlignItems::FlexStart,
+                        ..Default::default()
+                    },
+                    color: Color::NONE.into(),
+                    ..Default::default()
+                })
+                .with_children(|parent| {
+                    parent
+                        .spawn_bundle(TextBundle {
+                            text: Text::with_section(
+                                "Score: 0",
+                                TextStyle {
+                                    font: font_handle.clone(),
+                                    font_size: 35.0,
+                                    color: Color::rgb(0.9, 0.9, 0.9).into()
+                                },
+                                Default::default()
+                            ),
+                            ..Default::default()
+                        });
+                });
         });
 }
 
@@ -80,7 +137,7 @@ fn on_exit(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut asteroids_data: ResMut<AsteroidsData>,
-    query: Query<Entity, With<Player>>
+    query: Query<Entity, With<AsteroidsItem>>
 ) {
     query.for_each(|entity| {
         commands.entity(entity).despawn_recursive();
@@ -107,7 +164,7 @@ fn on_exit(
     asteroids_data.material_handle = None;
 }
 
-fn on_update(
+fn rotation(
     mut query: Query<(&mut Transform, &mut Player)>,
     keys: Res<Input<KeyCode>>,
     time: Res<Time>
@@ -115,7 +172,6 @@ fn on_update(
 
     let (mut transform, mut player) = query.single_mut();
     let mut rotated = false;
-    let mut accelerated = false;
 
     if keys.pressed(KeyCode::D) {
         if player.rotation > -0.05 {
@@ -138,9 +194,18 @@ fn on_update(
 
     let last_rot = transform.rotation.to_euler(EulerRot::ZYX);
     transform.rotation = Quat::from_euler(EulerRot::ZYX, last_rot.0 + player.rotation, 0.0, 0.0);
+}
 
-    let new_rot = transform.rotation.to_euler(EulerRot::ZYX);
-    let direction_vec = Vec2::new(-new_rot.0.sin(), new_rot.0.cos());
+fn acceleration(
+    mut query: Query<(&mut Transform, &mut Player)>,
+    keys: Res<Input<KeyCode>>,
+    time: Res<Time>
+) {
+    let (mut transform, mut player) = query.single_mut();
+    let mut accelerated = false;
+
+    let rotation = transform.rotation.to_euler(EulerRot::ZYX);
+    let direction_vec = Vec2::new(-rotation.0.sin(), rotation.0.cos());
 
     if keys.pressed(KeyCode::W) {
         let acc = direction_vec * (PLAYER_ACCELERATION * time.delta().as_secs_f32());

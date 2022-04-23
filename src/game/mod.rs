@@ -4,6 +4,14 @@ mod menu;
 mod pause;
 mod asteroids;
 
+mod button_colors {
+    use bevy::prelude::Color;
+
+    pub(crate) const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
+    pub(crate) const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
+    pub(crate) const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.35, 0.35);
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub(in self) enum GameState {
     Menu,

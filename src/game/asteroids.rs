@@ -1,3 +1,4 @@
+use std::time::Duration;
 use bevy::prelude::*;
 use crate::game::GameState;
 use crate::game::pause::handle_start_pause;
@@ -21,19 +22,30 @@ struct Player {
     rotation: f32,
 }
 
+struct AsteroidsAtlas {
+    atlas_handle: Handle<TextureAtlas>,
+}
+
+struct AsteroidsStats {
+    target_number: u32,
+    current_number: u32,
+    spawn_delay: Duration,
+}
+
 impl Plugin for AsteroidsPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_system_set(
                 SystemSet::on_enter(GameState::Asteroids)
+                    .with_system(asteroids_setup)
                     .with_system(spawn_player)
-                    .with_system(spawn_meteor)
                     .with_system(spawn_background)
                     .with_system(spawn_ui)
             )
             .add_system_set(
                 SystemSet::on_exit(GameState::Asteroids)
                     .with_system(on_exit)
+                    .with_system(remove_asteroids_atlas)
             )
             .add_system_set(
                 SystemSet::on_update(GameState::Asteroids)
@@ -44,6 +56,7 @@ impl Plugin for AsteroidsPlugin {
                     .with_system(camera_follow
                                  .after(acceleration)
                     )
+                    .with_system(spawn_asteroid)
                     .with_system(handle_start_pause)
             );
     }
@@ -81,30 +94,60 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert(AsteroidsItem);
 }
 
-fn spawn_meteor(
+fn asteroids_setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>
 ) {
-
-    let texture_handle = asset_server.load("images/meteors.png");
+    let texture_handle = asset_server.load("images/asteroids.png");
     let texture_atlas = TextureAtlas::from_grid_with_padding(texture_handle, Vec2::new(15.0, 15.0), 2, 2, Vec2::new(1.0, 1.0));
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
 
+    commands.insert_resource(AsteroidsAtlas { atlas_handle: texture_atlas_handle.clone() });
     commands
-        .spawn_bundle(SpriteSheetBundle {
-            texture_atlas: texture_atlas_handle.clone(),
-            sprite: TextureAtlasSprite {
-                index: 0,
-                custom_size: Some(Vec2::new(48.0, 48.0)),
+        .insert_resource(
+            AsteroidsStats {
+                target_number: 1,
+                current_number: 0,
+                spawn_delay: Duration::from_secs(2),
+            });
+}
+
+fn remove_asteroids_atlas(
+    mut commands: Commands,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    asteroids_atlas: Res<AsteroidsAtlas>
+) {
+    texture_atlases.remove(asteroids_atlas.atlas_handle.clone());
+    commands.remove_resource::<AsteroidsAtlas>();
+}
+
+fn spawn_asteroid(
+    mut commands: Commands,
+    asteroids_atlas: Res<AsteroidsAtlas>,
+    mut asteroids_stats: ResMut<AsteroidsStats>
+) {
+
+    if asteroids_stats.current_number < asteroids_stats.target_number {
+
+        commands
+            .spawn_bundle(SpriteSheetBundle {
+                texture_atlas: asteroids_atlas.atlas_handle.clone(),
+                sprite: TextureAtlasSprite {
+                    index: 0,
+                    custom_size: Some(Vec2::new(48.0, 48.0)),
+                    ..Default::default()
+                },
+                transform: Transform {
+                    translation: Vec3::new(50.0, 50.0, 1.0),
+                    ..Default::default()
+                },
                 ..Default::default()
-            },
-            transform: Transform {
-                translation: Vec3::new(50.0, 50.0, 1.0),
-                ..Default::default()
-            },
-            ..Default::default()
-        });
+            });
+
+        asteroids_stats.current_number += 1;
+    }
+
 }
 
 fn spawn_background(mut commands: Commands, asset_server: Res<AssetServer>) {

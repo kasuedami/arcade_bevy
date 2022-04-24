@@ -1,7 +1,4 @@
 use bevy::prelude::*;
-use bevy::render::mesh::{Indices, Mesh};
-use bevy::render::mesh::PrimitiveTopology;
-use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
 use crate::game::GameState;
 use crate::game::pause::handle_start_pause;
 
@@ -24,24 +21,14 @@ struct Player {
     rotation: f32,
 }
 
-struct AsteroidsData {
-    fighter_handle: Option<Mesh2dHandle>,
-    material_handle: Option<Handle<ColorMaterial>>,
-}
-
 impl Plugin for AsteroidsPlugin {
     fn build(&self, app: &mut App) {
         app
-            .insert_resource(AsteroidsData {
-                fighter_handle: None,
-                material_handle: None
-            })
             .add_system_set(
                 SystemSet::on_enter(GameState::Asteroids)
                     .with_system(spawn_player)
-                    .with_system(spawn_background
-                                 .before(spawn_player)
-                    )
+                    .with_system(spawn_meteor)
+                    .with_system(spawn_background)
                     .with_system(spawn_ui)
             )
             .add_system_set(
@@ -62,11 +49,7 @@ impl Plugin for AsteroidsPlugin {
     }
 }
 
-fn spawn_player(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>
-) {
+fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     let mut ortho_camera = OrthographicCameraBundle::new_2d();
     ortho_camera.orthographic_projection.scale = 0.4;
@@ -75,19 +58,16 @@ fn spawn_player(
         .spawn_bundle(ortho_camera)
             .insert(PlayerCamera);
 
-    let fighter_mesh = create_fighter();
-    let material = ColorMaterial {
-        color: Color::GRAY,
-        texture: None,
-    };
-
-    let fighter_handle = Mesh2dHandle(meshes.add(fighter_mesh));
-    let material_handle = materials.add(material);
+    let ship_handle = asset_server.load("images/ship.png");
 
     commands
-        .spawn_bundle(MaterialMesh2dBundle {
-            mesh: fighter_handle,
-            material: material_handle,
+        .spawn_bundle(SpriteBundle {
+            sprite: Sprite {
+                custom_size: Some(Vec2::new(48.0, 48.0)),
+                anchor: bevy::sprite::Anchor::Center,
+                ..Default::default()
+            },
+            texture: ship_handle,
             transform: Transform {
                 translation: Vec3::new(0.0, 0.0, 1.0),
                 ..Default::default()
@@ -99,6 +79,32 @@ fn spawn_player(
             rotation: 0.0,
         })
         .insert(AsteroidsItem);
+}
+
+fn spawn_meteor(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>
+) {
+
+    let texture_handle = asset_server.load("images/meteors.png");
+    let texture_atlas = TextureAtlas::from_grid_with_padding(texture_handle, Vec2::new(15.0, 15.0), 2, 2, Vec2::new(1.0, 1.0));
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+
+    commands
+        .spawn_bundle(SpriteSheetBundle {
+            texture_atlas: texture_atlas_handle.clone(),
+            sprite: TextureAtlasSprite {
+                index: 0,
+                custom_size: Some(Vec2::new(48.0, 48.0)),
+                ..Default::default()
+            },
+            transform: Transform {
+                translation: Vec3::new(50.0, 50.0, 1.0),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
 }
 
 fn spawn_background(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -171,36 +177,10 @@ fn spawn_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         });
 }
 
-fn on_exit(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    mut asteroids_data: ResMut<AsteroidsData>,
-    query: Query<Entity, With<AsteroidsItem>>
-) {
+fn on_exit(mut commands: Commands, query: Query<Entity, With<AsteroidsItem>>) {
     query.for_each(|entity| {
         commands.entity(entity).despawn_recursive();
     });
-
-    let fighter_handle = &asteroids_data.fighter_handle;
-    let material_handle = &asteroids_data.material_handle;
-
-    match fighter_handle {
-        Some(handle) => {
-            meshes.remove(&handle.0);
-        }
-        None => {},
-    }
-
-    match material_handle {
-        Some(handle) => {
-            materials.remove(handle);
-        }
-        None => {},
-    }
-
-    asteroids_data.fighter_handle = None;
-    asteroids_data.material_handle = None;
 }
 
 fn rotation(
@@ -284,45 +264,6 @@ fn camera_follow(
     let correction_strength = (diff_length * 0.01) * (diff_length * 0.01);
     let correction = diff_translation * (correction_strength * time.delta().as_secs_f32());
 
-    println!("{}", player_transform.translation);
-
     camera_transform.translation.x += correction.x;
     camera_transform.translation.y += correction.y;
-}
-
-fn create_fighter() -> Mesh {
-    let mut mesh = Mesh::new(PrimitiveTopology::LineStrip);
-
-    let mut positions: Vec<[f32; 3]> = Vec::with_capacity(4);
-    let mut normals: Vec<[f32; 3]> = Vec::with_capacity(4);
-    let mut uv: Vec<[f32; 2]> = Vec::with_capacity(4);
-    let mut indices: Vec<u32> = Vec::with_capacity(5);
-
-    positions.push([ 0.0,   25.0, 0.0]);
-    positions.push([ 20.0, -25.0, 0.0]);
-    positions.push([ 0.0,  -15.0, 0.0]);
-    positions.push([-20.0, -25.0, 0.0]);
-
-    normals.push([0.0, 0.0, 1.0]);
-    normals.push([0.0, 0.0, 1.0]);
-    normals.push([0.0, 0.0, 1.0]);
-    normals.push([0.0, 0.0, 1.0]);
-
-    uv.push([0.0, 0.0]);
-    uv.push([0.0, 0.0]);
-    uv.push([0.0, 0.0]);
-    uv.push([0.0, 0.0]);
-
-    indices.push(0);
-    indices.push(1);
-    indices.push(2);
-    indices.push(3);
-    indices.push(0);
-
-    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uv);
-    mesh.set_indices(Some(Indices::U32(indices)));
-
-    mesh
 }

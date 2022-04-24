@@ -16,6 +16,9 @@ const PLAYER_ROT_DEC: f32 = 0.5;
 struct AsteroidsItem;
 
 #[derive(Component, Clone, Copy)]
+struct PlayerCamera;
+
+#[derive(Component, Clone, Copy)]
 struct Player {
     velocity: Vec2,
     rotation: f32,
@@ -36,8 +39,10 @@ impl Plugin for AsteroidsPlugin {
             .add_system_set(
                 SystemSet::on_enter(GameState::Asteroids)
                     .with_system(spawn_player)
-                    .with_system(spawn_ui
-                                    .after(spawn_player))
+                    .with_system(spawn_background
+                                 .before(spawn_player)
+                    )
+                    .with_system(spawn_ui)
             )
             .add_system_set(
                 SystemSet::on_exit(GameState::Asteroids)
@@ -45,9 +50,13 @@ impl Plugin for AsteroidsPlugin {
             )
             .add_system_set(
                 SystemSet::on_update(GameState::Asteroids)
-                    .with_system(rotation)
-                    .with_system(acceleration
-                        .before(rotation))
+                    .with_system(acceleration)
+                    .with_system(rotation
+                                 .after(acceleration)
+                    )
+                    .with_system(camera_follow
+                                 .after(acceleration)
+                    )
                     .with_system(handle_start_pause)
             );
     }
@@ -64,20 +73,25 @@ fn spawn_player(
 
     commands
         .spawn_bundle(ortho_camera)
-        .insert(AsteroidsItem);
+            .insert(PlayerCamera);
 
     let fighter_mesh = create_fighter();
     let material = ColorMaterial {
-        color: Color::WHITE,
+        color: Color::GRAY,
         texture: None,
     };
 
     let fighter_handle = Mesh2dHandle(meshes.add(fighter_mesh));
     let material_handle = materials.add(material);
 
-    commands.spawn_bundle(MaterialMesh2dBundle {
+    commands
+        .spawn_bundle(MaterialMesh2dBundle {
             mesh: fighter_handle,
             material: material_handle,
+            transform: Transform {
+                translation: Vec3::new(0.0, 0.0, 1.0),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .insert(Player {
@@ -85,6 +99,28 @@ fn spawn_player(
             rotation: 0.0,
         })
         .insert(AsteroidsItem);
+}
+
+fn spawn_background(mut commands: Commands, asset_server: Res<AssetServer>) {
+
+    let texture_handle = asset_server.load("images/stars.png");
+
+    commands
+        .spawn_bundle(SpriteBundle {
+            sprite: Sprite {
+                color: Color::WHITE,
+                custom_size: Some(Vec2::new(256.0, 256.0)),
+                anchor: bevy::sprite::Anchor::Center,
+                ..Default::default()
+            },
+            transform: Transform {
+                translation: Vec3::new(0.0, 0.0, 0.0),
+                ..Default::default()
+            },
+            texture: texture_handle,
+            ..Default::default()
+        });
+
 }
 
 fn spawn_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -227,8 +263,31 @@ fn acceleration(
         player.velocity -= reduction * time.delta().as_secs_f32();
     }
 
-    transform.translation.y += player.velocity.y;
     transform.translation.x += player.velocity.x;
+    transform.translation.y += player.velocity.y;
+}
+
+fn camera_follow(
+    player_query: Query<&Transform, With<Player>>,
+    mut camera_query: Query<&mut Transform, (With<PlayerCamera>, Without<Player>)>,
+    time: Res<Time>
+) {
+    let player_transform = player_query.single();
+    let mut camera_transform = camera_query.single_mut();
+
+    let player_translation = player_transform.translation.truncate();
+    let camera_translation = camera_transform.translation.truncate();
+
+    let diff_translation = player_translation - camera_translation;
+    let diff_length = diff_translation.length();
+
+    let correction_strength = (diff_length * 0.01) * (diff_length * 0.01);
+    let correction = diff_translation * (correction_strength * time.delta().as_secs_f32());
+
+    println!("{}", player_transform.translation);
+
+    camera_transform.translation.x += correction.x;
+    camera_transform.translation.y += correction.y;
 }
 
 fn create_fighter() -> Mesh {

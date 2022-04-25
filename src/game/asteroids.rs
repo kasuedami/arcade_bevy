@@ -1,3 +1,4 @@
+use std::f32::consts::PI;
 use std::time::Duration;
 use bevy::prelude::*;
 use rand::prelude::*;
@@ -35,6 +36,7 @@ struct AsteroidsStats {
 
 #[derive(Component, Clone, Copy)]
 struct Asteroid {
+    velocity: Vec2,
     rotation: f32,
 }
 
@@ -66,6 +68,7 @@ impl Plugin for AsteroidsPlugin {
                     )
                     .with_system(spawn_asteroid)
                     .with_system(asteroid_rotation)
+                    .with_system(asteroid_movement)
                     .with_system(handle_start_pause)
             );
     }
@@ -139,7 +142,11 @@ fn spawn_asteroid(
 
     if asteroids_stats.current_number < asteroids_stats.target_number {
 
-        let rotation = rand::thread_rng().gen_range(-0.7..0.7);
+        let mut rng = rand::thread_rng();
+        let rotation = rng.gen_range(-0.7..0.7);
+        let angle = rng.gen_range(0.0..PI);
+        let amplitude = rng.gen_range(10.0..20.0);
+        let velocity = Vec2::new(angle.cos() * amplitude, angle.sin() * amplitude);
 
         commands
             .spawn_bundle(SpriteSheetBundle {
@@ -156,6 +163,7 @@ fn spawn_asteroid(
                 ..Default::default()
             })
             .insert(Asteroid {
+                velocity,
                 rotation,
             });
 
@@ -344,5 +352,12 @@ fn asteroid_rotation(mut asteroid_query: Query<(&mut Transform, &Asteroid)>, tim
     asteroid_query.for_each_mut(|(mut transform, asteroid)| {
         let last_rot = transform.rotation.to_euler(EulerRot::ZYX);
         transform.rotation = Quat::from_euler(EulerRot::ZYX, last_rot.0 + asteroid.rotation * time.delta_seconds(), 0.0, 0.0);
+    });
+}
+
+fn asteroid_movement(mut asteroid_query: Query<(&mut Transform, &Asteroid)>, time: Res<Time>) {
+    asteroid_query.for_each_mut(|(mut transform, asteroid)| {
+        transform.translation.x += asteroid.velocity.x * time.delta_seconds();
+        transform.translation.y += asteroid.velocity.y * time.delta_seconds();
     });
 }

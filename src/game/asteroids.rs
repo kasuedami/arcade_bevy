@@ -1,5 +1,6 @@
 use std::time::Duration;
 use bevy::prelude::*;
+use rand::prelude::*;
 use crate::game::GameState;
 use crate::game::pause::handle_start_pause;
 
@@ -32,6 +33,11 @@ struct AsteroidsStats {
     spawn_delay: Duration,
 }
 
+#[derive(Component, Clone, Copy)]
+struct Asteroid {
+    rotation: f32,
+}
+
 impl Plugin for AsteroidsPlugin {
     fn build(&self, app: &mut App) {
         app
@@ -45,7 +51,9 @@ impl Plugin for AsteroidsPlugin {
             .add_system_set(
                 SystemSet::on_exit(GameState::Asteroids)
                     .with_system(on_exit)
+                    .with_system(remove_player)
                     .with_system(remove_asteroids_atlas)
+                    .with_system(remove_asteroids)
             )
             .add_system_set(
                 SystemSet::on_update(GameState::Asteroids)
@@ -57,6 +65,7 @@ impl Plugin for AsteroidsPlugin {
                                  .after(acceleration)
                     )
                     .with_system(spawn_asteroid)
+                    .with_system(asteroid_rotation)
                     .with_system(handle_start_pause)
             );
     }
@@ -130,6 +139,8 @@ fn spawn_asteroid(
 
     if asteroids_stats.current_number < asteroids_stats.target_number {
 
+        let rotation = rand::thread_rng().gen_range(-0.7..0.7);
+
         commands
             .spawn_bundle(SpriteSheetBundle {
                 texture_atlas: asteroids_atlas.atlas_handle.clone(),
@@ -143,11 +154,20 @@ fn spawn_asteroid(
                     ..Default::default()
                 },
                 ..Default::default()
+            })
+            .insert(Asteroid {
+                rotation,
             });
 
         asteroids_stats.current_number += 1;
     }
 
+}
+
+fn remove_asteroids(mut commands: Commands, query: Query<Entity, With<Asteroid>>) {
+    query.for_each(|entity| {
+        commands.entity(entity).despawn();
+    });
 }
 
 fn spawn_background(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -218,6 +238,15 @@ fn spawn_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                         });
                 });
         });
+}
+
+fn remove_player(
+    mut commands: Commands,
+    player_query: Query<Entity, With<Player>>,
+    player_camera_query: Query<Entity, With<PlayerCamera>>,
+) {
+    commands.entity(player_query.single()).despawn();
+    commands.entity(player_camera_query.single()).despawn();
 }
 
 fn on_exit(mut commands: Commands, query: Query<Entity, With<AsteroidsItem>>) {
@@ -309,4 +338,11 @@ fn camera_follow(
 
     camera_transform.translation.x += correction.x;
     camera_transform.translation.y += correction.y;
+}
+
+fn asteroid_rotation(mut asteroid_query: Query<(&mut Transform, &Asteroid)>, time: Res<Time>) {
+    asteroid_query.for_each_mut(|(mut transform, asteroid)| {
+        let last_rot = transform.rotation.to_euler(EulerRot::ZYX);
+        transform.rotation = Quat::from_euler(EulerRot::ZYX, last_rot.0 + asteroid.rotation * time.delta_seconds(), 0.0, 0.0);
+    });
 }

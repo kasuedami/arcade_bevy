@@ -7,10 +7,10 @@ use crate::game::pause::handle_start_pause;
 
 pub struct AsteroidsPlugin;
 
-const PLAYER_ACCELERATION: f32 = 1.0;
+const PLAYER_ACCELERATION: f32 = 50.0;
 const PLAYER_DECELERATION: f32 = 0.2;
-const PLAYER_ROT_ACC: f32 = 0.05;
-const PLAYER_ROT_DEC: f32 = 0.5;
+const PLAYER_ROT_ACC: f32 = 1.0;
+const PLAYER_ROT_DEC: f32 = 0.2;
 
 #[derive(Component, Clone, Copy)]
 struct AsteroidsItem;
@@ -31,13 +31,31 @@ struct AsteroidsAtlas {
 struct AsteroidsStats {
     target_number: u32,
     current_number: u32,
-    spawn_delay: Duration,
+    spawn_timer: Duration,
 }
 
 #[derive(Component, Clone, Copy)]
 struct Asteroid {
     velocity: Vec2,
     rotation: f32,
+}
+
+#[derive(Component)]
+struct LaserShooter {
+    cooldown: Timer,
+}
+
+impl LaserShooter {
+    pub const MAX_COOLDOWN: Duration = Duration::from_millis(500);
+}
+
+#[derive(Component, Clone, Copy)]
+struct LaserBullet {
+    velocity: Vec2,
+}
+
+impl LaserBullet {
+    pub const SPEED: f32 = 50.0;
 }
 
 impl Plugin for AsteroidsPlugin {
@@ -66,6 +84,10 @@ impl Plugin for AsteroidsPlugin {
                     .with_system(camera_follow
                                  .after(acceleration)
                     )
+                    .with_system(player_shoot_laser
+                                 .after(rotation)
+                    )
+                    .with_system(laser_movement)
                     .with_system(spawn_asteroid)
                     .with_system(asteroid_rotation)
                     .with_system(asteroid_movement)
@@ -103,6 +125,9 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
             velocity: Vec2::ZERO,
             rotation: 0.0,
         })
+        .insert(LaserShooter {
+            cooldown: Timer::new(LaserShooter::MAX_COOLDOWN, false),
+        })
         .insert(AsteroidsItem);
 }
 
@@ -121,7 +146,7 @@ fn asteroids_setup(
             AsteroidsStats {
                 target_number: 1,
                 current_number: 0,
-                spawn_delay: Duration::from_secs(2),
+                spawn_timer: Duration::from_secs(5),
             });
 }
 
@@ -273,26 +298,28 @@ fn rotation(
     let mut rotated = false;
 
     if keys.pressed(KeyCode::D) {
-        if player.rotation > -0.05 {
-            player.rotation -= PLAYER_ROT_ACC * time.delta().as_secs_f32();
+        if player.rotation > -2.5 {
+            player.rotation -= PLAYER_ROT_ACC * time.delta_seconds();
         }
         rotated = true;
     }
 
     if keys.pressed(KeyCode::A) {
-        if player.rotation < 0.05 {
-            player.rotation += PLAYER_ROT_ACC * time.delta().as_secs_f32();
+        if player.rotation < 2.5 {
+            player.rotation += PLAYER_ROT_ACC * time.delta_seconds();
         }
         rotated = true;
     }
 
     if !rotated {
-        let reduction = player.rotation * PLAYER_ROT_DEC;
-        player.rotation -= reduction * time.delta().as_secs_f32();
+        let reduction = player.rotation * PLAYER_ROT_DEC * time.delta_seconds();
+        player.rotation -= reduction;
     }
 
     let last_rot = transform.rotation.to_euler(EulerRot::ZYX);
-    transform.rotation = Quat::from_euler(EulerRot::ZYX, last_rot.0 + player.rotation, 0.0, 0.0);
+    let rot = Quat::from_axis_angle(Vec3::new(0.0, 0.0, 1.0), player.rotation * time.delta_seconds());
+    transform.rotation = transform.rotation.mul_quat(rot);
+    //transform.rotation = Quat::from_euler(EulerRot::ZYX, last_rot.0 + player.rotation, 0.0, 0.0);
 }
 
 fn acceleration(
@@ -307,24 +334,24 @@ fn acceleration(
     let direction_vec = Vec2::new(-rotation.0.sin(), rotation.0.cos());
 
     if keys.pressed(KeyCode::W) {
-        let acc = direction_vec * (PLAYER_ACCELERATION * time.delta().as_secs_f32());
+        let acc = direction_vec * PLAYER_ACCELERATION * time.delta_seconds();
         player.velocity += acc;
         accelerated = true;
     }
 
     if keys.pressed(KeyCode::S) {
-        let acc = direction_vec * (PLAYER_ACCELERATION * time.delta().as_secs_f32());
+        let acc = direction_vec * PLAYER_ACCELERATION * time.delta_seconds();
         player.velocity -= acc;
         accelerated = true;
     }
 
     if !accelerated {
-        let reduction = player.velocity * PLAYER_DECELERATION;
-        player.velocity -= reduction * time.delta().as_secs_f32();
+        let reduction = player.velocity * PLAYER_DECELERATION * time.delta_seconds();
+        player.velocity -= reduction;
     }
 
-    transform.translation.x += player.velocity.x;
-    transform.translation.y += player.velocity.y;
+    transform.translation.x += player.velocity.x * time.delta_seconds();
+    transform.translation.y += player.velocity.y * time.delta_seconds();
 }
 
 fn camera_follow(
@@ -359,5 +386,43 @@ fn asteroid_movement(mut asteroid_query: Query<(&mut Transform, &Asteroid)>, tim
     asteroid_query.for_each_mut(|(mut transform, asteroid)| {
         transform.translation.x += asteroid.velocity.x * time.delta_seconds();
         transform.translation.y += asteroid.velocity.y * time.delta_seconds();
+    });
+}
+
+fn player_shoot_laser(
+    mut commands: Commands,
+    mut query: Query<(&Transform, &Player, &mut LaserShooter)>,
+    keys: Res<Input<KeyCode>>,
+    time: Res<Time>,
+    asset_server: Res<AssetServer>
+) {
+
+    let (transform, player, mut laser_shooter) = query.single_mut();
+    laser_shooter.cooldown.tick(time.delta());
+
+    if keys.pressed(KeyCode::Space) && laser_shooter.cooldown.finished() {
+
+        laser_shooter.cooldown.reset();
+
+        let texture_handle = asset_server.load("images/laser.png");
+        let velocity = player.velocity;
+
+        commands
+            .spawn_bundle(SpriteBundle {
+                transform: *transform,
+                texture: texture_handle,
+                ..Default::default()
+            })
+            .insert(LaserBullet {
+                velocity,
+            });
+    }
+
+}
+
+fn laser_movement(mut query: Query<(&mut Transform, &LaserBullet)>, time: Res<Time>) {
+    query.for_each_mut(|(mut transform, laser_bullet)| {
+        transform.translation.x += laser_bullet.velocity.x * time.delta_seconds();
+        transform.translation.y += laser_bullet.velocity.y * time.delta_seconds();
     });
 }

@@ -9,8 +9,8 @@ pub struct AsteroidsPlugin;
 
 const PLAYER_ACCELERATION: f32 = 50.0;
 const PLAYER_DECELERATION: f32 = 0.2;
-const PLAYER_ROT_ACC: f32 = 1.0;
-const PLAYER_ROT_DEC: f32 = 0.2;
+const PLAYER_ROT_ACC: f32 = 2.0;
+const PLAYER_ROT_DEC: f32 = 0.5;
 
 #[derive(Component, Clone, Copy)]
 struct AsteroidsItem;
@@ -43,19 +43,17 @@ struct Asteroid {
 #[derive(Component)]
 struct LaserShooter {
     cooldown: Timer,
+    offset: f32,
 }
 
 impl LaserShooter {
-    pub const MAX_COOLDOWN: Duration = Duration::from_millis(500);
+    pub const MAX_COOLDOWN: Duration = Duration::from_millis(200);
+    pub const SPEED: f32 = 200.0;
 }
 
 #[derive(Component, Clone, Copy)]
 struct LaserBullet {
     velocity: Vec2,
-}
-
-impl LaserBullet {
-    pub const SPEED: f32 = 50.0;
 }
 
 impl Plugin for AsteroidsPlugin {
@@ -127,6 +125,7 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
         })
         .insert(LaserShooter {
             cooldown: Timer::new(LaserShooter::MAX_COOLDOWN, false),
+            offset: 30.0,
         })
         .insert(AsteroidsItem);
 }
@@ -377,8 +376,8 @@ fn camera_follow(
 
 fn asteroid_rotation(mut asteroid_query: Query<(&mut Transform, &Asteroid)>, time: Res<Time>) {
     asteroid_query.for_each_mut(|(mut transform, asteroid)| {
-        let last_rot = transform.rotation.to_euler(EulerRot::ZYX);
-        transform.rotation = Quat::from_euler(EulerRot::ZYX, last_rot.0 + asteroid.rotation * time.delta_seconds(), 0.0, 0.0);
+        let rotation = Quat::from_axis_angle(Vec3::new(0.0, 0.0, 1.0), asteroid.rotation * time.delta_seconds());
+        transform.rotation = transform.rotation.mul_quat(rotation);
     });
 }
 
@@ -397,7 +396,7 @@ fn player_shoot_laser(
     asset_server: Res<AssetServer>
 ) {
 
-    let (transform, player, mut laser_shooter) = query.single_mut();
+    let (player_transform, player, mut laser_shooter) = query.single_mut();
     laser_shooter.cooldown.tick(time.delta());
 
     if keys.pressed(KeyCode::Space) && laser_shooter.cooldown.finished() {
@@ -405,11 +404,31 @@ fn player_shoot_laser(
         laser_shooter.cooldown.reset();
 
         let texture_handle = asset_server.load("images/laser.png");
-        let velocity = player.velocity;
+
+        let rotation = player_transform.rotation.to_euler(EulerRot::ZYX);
+        let direction = Vec2::new(-rotation.0.sin(), rotation.0.cos());
+        let velocity = Vec2::new(player.velocity.x + direction.x * LaserShooter::SPEED, player.velocity.y + direction.y * LaserShooter::SPEED);
+
+        let translation = Vec3::new(
+            player_transform.translation.x + direction.x * laser_shooter.offset,
+            player_transform.translation.y + direction.y * laser_shooter.offset,
+            player_transform.translation.z
+        );
+
+        let transform = Transform {
+            translation,
+            rotation: player_transform.rotation,
+            scale: player_transform.scale
+        };
 
         commands
             .spawn_bundle(SpriteBundle {
-                transform: *transform,
+                sprite: Sprite {
+                    custom_size: Some(Vec2::new(24.0, 24.0)),
+                    anchor: bevy::sprite::Anchor::Center,
+                    ..Default::default()
+                },
+                transform,
                 texture: texture_handle,
                 ..Default::default()
             })

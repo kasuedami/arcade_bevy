@@ -6,12 +6,9 @@ use crate::game::GameState;
 use crate::game::pause::handle_start_pause;
 
 mod player;
+mod ui;
 
 pub struct AsteroidsPlugin;
-
-
-#[derive(Component, Clone, Copy)]
-struct AsteroidsItem;
 
 struct AsteroidsAtlas {
     atlas_handle: Handle<TextureAtlas>,
@@ -37,17 +34,16 @@ impl Plugin for AsteroidsPlugin {
                     .with_system(asteroids_setup)
                     .with_system(player::spawn_player)
                     .with_system(spawn_background)
-                    .with_system(spawn_ui)
+                    .with_system(ui::spawn_ui)
             )
             .add_system_set(
                 SystemSet::on_exit(GameState::Asteroids)
-                    .with_system(on_exit)
+                    .with_system(ui::remove_ui)
                     .with_system(player::remove_player)
                     .with_system(remove_asteroids_atlas)
                     .with_system(remove_asteroids
                                  .before(remove_asteroids_atlas)
                     )
-                    .before("update")
             )
             .add_system_set(
                 SystemSet::on_update(GameState::Asteroids)
@@ -73,7 +69,6 @@ impl Plugin for AsteroidsPlugin {
                     .with_system(asteroid_movement)
                     .with_system(asteroid_distance_cleanup)
                     .with_system(handle_start_pause)
-                    .label("update")
             );
     }
 }
@@ -207,60 +202,6 @@ fn spawn_background(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..Default::default()
         });
 
-}
-
-fn spawn_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
-
-    let font_handle = asset_server.load("fonts/Regular.ttf");
-
-    commands
-        .spawn_bundle(UiCameraBundle::default())
-        .insert(AsteroidsItem);
-
-    commands
-        .spawn_bundle(NodeBundle {
-            style: Style {
-                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                ..Default::default()
-            },
-            color: Color::NONE.into(),
-            ..Default::default()
-        })
-        .insert(AsteroidsItem)
-        .with_children(|parent| {
-            parent
-                .spawn_bundle(NodeBundle {
-                    style: Style {
-                        size: Size::new(Val::Percent(30.0), Val::Percent(100.0)),
-                        flex_direction: FlexDirection::ColumnReverse,
-                        align_items: AlignItems::FlexStart,
-                        ..Default::default()
-                    },
-                    color: Color::NONE.into(),
-                    ..Default::default()
-                })
-                .with_children(|parent| {
-                    parent
-                        .spawn_bundle(TextBundle {
-                            text: Text::with_section(
-                                "Score: 0",
-                                TextStyle {
-                                    font: font_handle.clone(),
-                                    font_size: 35.0,
-                                    color: Color::rgb(0.9, 0.9, 0.9)
-                                },
-                                Default::default()
-                            ),
-                            ..Default::default()
-                        });
-                });
-        });
-}
-
-fn on_exit(mut commands: Commands, query: Query<Entity, With<AsteroidsItem>>) {
-    query.for_each(|entity| {
-        commands.entity(entity).despawn_recursive();
-    });
 }
 
 fn asteroid_rotation(mut asteroid_query: Query<(&mut Transform, &Asteroid)>, time: Res<Time>) {

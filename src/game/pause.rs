@@ -62,7 +62,7 @@ fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>, time: Res<Ti
             ..Default::default()
         })
         .insert(PauseItem)
-        .with_children(|mut parent| {
+        .with_children(|parent| {
             parent
                 .spawn_bundle(TextBundle {
                     text: Text::with_section(
@@ -80,17 +80,15 @@ fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>, time: Res<Ti
                     },
                     ..Default::default()
                 });
-            spawn_button(&mut parent, font.clone(), PauseButton::Continue);
-            spawn_button(&mut parent, font.clone(), PauseButton::Quit);
+            spawn_button(parent, font.clone(), PauseButton::Continue);
+            spawn_button(parent, font.clone(), PauseButton::Quit);
         });
 }
 
 fn handle_keyboard(keys: Res<Input<KeyCode>>, mut game_state: ResMut<State<GameState>>, time: Res<Time>, entered: Res<PauseEntered>) {
 
-    if time.time_since_startup() - entered.0 > MINIMUM_TIME {
-        if keys.just_pressed(KeyCode::Escape) {
-            game_state.pop().unwrap();
-        }
+    if time.time_since_startup() - entered.0 > MINIMUM_TIME && keys.just_pressed(KeyCode::Escape) {
+        game_state.pop().unwrap();
     }
 }
 

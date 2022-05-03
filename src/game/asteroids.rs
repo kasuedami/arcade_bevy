@@ -31,7 +31,7 @@ struct AsteroidsAtlas {
 struct AsteroidsStats {
     target_number: u32,
     current_number: u32,
-    spawn_timer: Duration,
+    spawn_timer: Timer,
 }
 
 #[derive(Component, Clone, Copy)]
@@ -49,11 +49,13 @@ struct LaserShooter {
 impl LaserShooter {
     pub const MAX_COOLDOWN: Duration = Duration::from_millis(200);
     pub const SPEED: f32 = 200.0;
+    pub const LIFETIME: Duration = Duration::from_secs(5);
 }
 
-#[derive(Component, Clone, Copy)]
+#[derive(Component)]
 struct LaserBullet {
     velocity: Vec2,
+    life_time: Timer,
 }
 
 impl Plugin for AsteroidsPlugin {
@@ -72,6 +74,7 @@ impl Plugin for AsteroidsPlugin {
                     .with_system(remove_player)
                     .with_system(remove_asteroids_atlas)
                     .with_system(remove_asteroids)
+                    .before("update")
             )
             .add_system_set(
                 SystemSet::on_update(GameState::Asteroids)
@@ -86,10 +89,17 @@ impl Plugin for AsteroidsPlugin {
                                  .after(rotation)
                     )
                     .with_system(laser_movement)
-                    .with_system(spawn_asteroid)
+                    .with_system(laser_despawner
+                                 .after(laser_movement)
+                    )
+                    .with_system(asteroid_number_timer)
+                    .with_system(spawn_asteroid
+                                 .after(asteroid_number_timer)
+                    )
                     .with_system(asteroid_rotation)
                     .with_system(asteroid_movement)
                     .with_system(handle_start_pause)
+                    .label("update")
             );
     }
 }
@@ -139,13 +149,13 @@ fn asteroids_setup(
     let texture_atlas = TextureAtlas::from_grid_with_padding(texture_handle, Vec2::new(15.0, 15.0), 2, 2, Vec2::new(1.0, 1.0));
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
 
-    commands.insert_resource(AsteroidsAtlas { atlas_handle: texture_atlas_handle.clone() });
+    commands.insert_resource(AsteroidsAtlas { atlas_handle: texture_atlas_handle });
     commands
         .insert_resource(
             AsteroidsStats {
                 target_number: 1,
                 current_number: 0,
-                spawn_timer: Duration::from_secs(5),
+                spawn_timer: Timer::from_seconds(5.0, true),
             });
 }
 
@@ -155,14 +165,28 @@ fn remove_asteroids_atlas(
     asteroids_atlas: Res<AsteroidsAtlas>
 ) {
     texture_atlases.remove(asteroids_atlas.atlas_handle.clone());
+
     commands.remove_resource::<AsteroidsAtlas>();
+    commands.remove_resource::<AsteroidsStats>();
+}
+
+fn asteroid_number_timer(mut asteroids_stats: ResMut<AsteroidsStats>, time: Res<Time>) {
+    asteroids_stats.spawn_timer.tick(time.delta());
+
+    if asteroids_stats.spawn_timer.finished() {
+        // Logic to shorten time or something
+        asteroids_stats.spawn_timer.set_duration(Duration::from_secs(5));
+
+        asteroids_stats.target_number += 1;
+    }
 }
 
 fn spawn_asteroid(
     mut commands: Commands,
     asteroids_atlas: Res<AsteroidsAtlas>,
-    mut asteroids_stats: ResMut<AsteroidsStats>
+    mut asteroids_stats: ResMut<AsteroidsStats>,
 ) {
+
 
     if asteroids_stats.current_number < asteroids_stats.target_number {
 
@@ -176,7 +200,7 @@ fn spawn_asteroid(
             .spawn_bundle(SpriteSheetBundle {
                 texture_atlas: asteroids_atlas.atlas_handle.clone(),
                 sprite: TextureAtlasSprite {
-                    index: 0,
+                    index: rand::thread_rng().gen_range(0..3),
                     custom_size: Some(Vec2::new(48.0, 48.0)),
                     ..Default::default()
                 },
@@ -262,7 +286,7 @@ fn spawn_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                                 TextStyle {
                                     font: font_handle.clone(),
                                     font_size: 35.0,
-                                    color: Color::rgb(0.9, 0.9, 0.9).into()
+                                    color: Color::rgb(0.9, 0.9, 0.9)
                                 },
                                 Default::default()
                             ),
@@ -315,10 +339,8 @@ fn rotation(
         player.rotation -= reduction;
     }
 
-    let last_rot = transform.rotation.to_euler(EulerRot::ZYX);
     let rot = Quat::from_axis_angle(Vec3::new(0.0, 0.0, 1.0), player.rotation * time.delta_seconds());
     transform.rotation = transform.rotation.mul_quat(rot);
-    //transform.rotation = Quat::from_euler(EulerRot::ZYX, last_rot.0 + player.rotation, 0.0, 0.0);
 }
 
 fn acceleration(
@@ -434,6 +456,7 @@ fn player_shoot_laser(
             })
             .insert(LaserBullet {
                 velocity,
+                life_time: Timer::new(LaserShooter::LIFETIME, false),
             });
     }
 
@@ -444,4 +467,20 @@ fn laser_movement(mut query: Query<(&mut Transform, &LaserBullet)>, time: Res<Ti
         transform.translation.x += laser_bullet.velocity.x * time.delta_seconds();
         transform.translation.y += laser_bullet.velocity.y * time.delta_seconds();
     });
+}
+
+fn laser_despawner(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut LaserBullet)>,
+    time: Res<Time>
+) {
+
+    query.for_each_mut(|(entity, mut laser_bullet)| {
+        laser_bullet.life_time.tick(time.delta());
+
+        if laser_bullet.life_time.finished() {
+            commands.entity(entity).despawn();
+        }
+    });
+
 }

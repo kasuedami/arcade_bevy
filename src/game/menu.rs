@@ -75,10 +75,10 @@ fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
                             color: Color::rgb(0.5, 0.5, 0.5).into(),
                             ..Default::default()
                         })
-                        .with_children(|mut parent| {
-                            spawn_button(&mut parent, font.clone(), MenuButton::Asteroids);
-                            spawn_button(&mut parent, font.clone(), MenuButton::Settings);
-                            spawn_button(&mut parent, font.clone(), MenuButton::Quit);
+                        .with_children(|parent| {
+                            spawn_button(parent, font.clone(), MenuButton::Asteroids);
+                            spawn_button(parent, font.clone(), MenuButton::Settings);
+                            spawn_button(parent, font.clone(), MenuButton::Quit);
                         });
 
                 });

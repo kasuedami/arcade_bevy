@@ -74,7 +74,6 @@ impl Plugin for AsteroidsPlugin {
                     .with_system(remove_player)
                     .with_system(remove_asteroids_atlas)
                     .with_system(remove_asteroids)
-                    .before("update")
             )
             .add_system_set(
                 SystemSet::on_update(GameState::Asteroids)
@@ -100,7 +99,6 @@ impl Plugin for AsteroidsPlugin {
                     .with_system(asteroid_movement)
                     .with_system(asteroid_distance_cleanup)
                     .with_system(handle_start_pause)
-                    .label("update")
             );
     }
 }
@@ -137,8 +135,7 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert(LaserShooter {
             cooldown: Timer::new(LaserShooter::MAX_COOLDOWN, false),
             offset: 30.0,
-        })
-        .insert(AsteroidsItem);
+        });
 }
 
 fn asteroids_setup(

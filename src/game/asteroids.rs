@@ -98,6 +98,7 @@ impl Plugin for AsteroidsPlugin {
                     )
                     .with_system(asteroid_rotation)
                     .with_system(asteroid_movement)
+                    .with_system(asteroid_distance_cleanup)
                     .with_system(handle_start_pause)
                     .label("update")
             );
@@ -185,16 +186,22 @@ fn spawn_asteroid(
     mut commands: Commands,
     asteroids_atlas: Res<AsteroidsAtlas>,
     mut asteroids_stats: ResMut<AsteroidsStats>,
+    query: Query<&Transform, With<Player>>
 ) {
-
 
     if asteroids_stats.current_number < asteroids_stats.target_number {
 
+        let player_translation = query.single().translation;
         let mut rng = rand::thread_rng();
+
+        let offset_angle = rng.gen_range(0.0..2.0*PI);
+        let asteroid_offset = vec2_from_circle(offset_angle, rng.gen_range(200.0..300.0));
+        let translation = player_translation + Vec3::new(asteroid_offset.x, asteroid_offset.y, 0.5);
+
         let rotation = rng.gen_range(-0.7..0.7);
-        let angle = rng.gen_range(0.0..PI);
-        let amplitude = rng.gen_range(10.0..20.0);
-        let velocity = Vec2::new(angle.cos() * amplitude, angle.sin() * amplitude);
+        let angle = offset_angle + PI + rng.gen_range(-0.5..0.5);
+        let speed = rng.gen_range(40.0..80.0);
+        let velocity = vec2_from_circle(angle, speed);
 
         commands
             .spawn_bundle(SpriteSheetBundle {
@@ -205,7 +212,7 @@ fn spawn_asteroid(
                     ..Default::default()
                 },
                 transform: Transform {
-                    translation: Vec3::new(50.0, 50.0, 1.0),
+                    translation,
                     ..Default::default()
                 },
                 ..Default::default()
@@ -218,6 +225,23 @@ fn spawn_asteroid(
         asteroids_stats.current_number += 1;
     }
 
+}
+
+fn asteroid_distance_cleanup(
+    mut commands: Commands,
+    asteroid_query: Query<(Entity, &Transform), With<Asteroid>>,
+    player_query: Query<&Transform, With<Player>>
+) {
+
+    if !asteroid_query.is_empty() {
+        let player_translation = player_query.single().translation;
+
+        asteroid_query.for_each(|(entity, transform)| {
+            if player_translation.distance(transform.translation) > 400.0 {
+                commands.entity(entity).despawn();
+            }
+        });
+    }
 }
 
 fn remove_asteroids(mut commands: Commands, query: Query<Entity, With<Asteroid>>) {
@@ -352,7 +376,7 @@ fn acceleration(
     let mut accelerated = false;
 
     let rotation = transform.rotation.to_euler(EulerRot::ZYX);
-    let direction_vec = Vec2::new(-rotation.0.sin(), rotation.0.cos());
+    let direction_vec = vec2_from_circle(rotation.0, 1.0);
 
     if keys.pressed(KeyCode::W) {
         let acc = direction_vec * PLAYER_ACCELERATION * time.delta_seconds();
@@ -428,7 +452,7 @@ fn player_shoot_laser(
         let texture_handle = asset_server.load("images/laser.png");
 
         let rotation = player_transform.rotation.to_euler(EulerRot::ZYX);
-        let direction = Vec2::new(-rotation.0.sin(), rotation.0.cos());
+        let direction = vec2_from_circle(rotation.0, 1.0);
         let velocity = Vec2::new(player.velocity.x + direction.x * LaserShooter::SPEED, player.velocity.y + direction.y * LaserShooter::SPEED);
 
         let translation = Vec3::new(
@@ -483,4 +507,8 @@ fn laser_despawner(
         }
     });
 
+}
+
+fn vec2_from_circle(angle: f32, radius: f32) -> Vec2 {
+    Vec2::new(-angle.sin() * radius, angle.cos() * radius)
 }

@@ -1,79 +1,26 @@
-use std::f32::consts::PI;
-use std::time::Duration;
 use bevy::prelude::*;
 use rand::prelude::*;
-use crate::game::GameState;
-use crate::game::pause::handle_start_pause;
+use std::time::Duration;
+use std::f32::consts::PI;
+use super::player::Player;
 
-mod player;
-mod ui;
+#[derive(Component, Clone, Copy)]
+pub struct Asteroid {
+    velocity: Vec2,
+    rotation: f32,
+}
 
-pub struct AsteroidsPlugin;
-
-struct AsteroidsAtlas {
+pub struct AsteroidsAtlas {
     atlas_handle: Handle<TextureAtlas>,
 }
 
-struct AsteroidsStats {
+pub struct AsteroidsStats {
     target_number: u32,
     current_number: u32,
     spawn_timer: Timer,
 }
 
-#[derive(Component, Clone, Copy)]
-struct Asteroid {
-    velocity: Vec2,
-    rotation: f32,
-}
-
-impl Plugin for AsteroidsPlugin {
-    fn build(&self, app: &mut App) {
-        app
-            .add_system_set(
-                SystemSet::on_enter(GameState::Asteroids)
-                    .with_system(asteroids_setup)
-                    .with_system(player::spawn_player)
-                    .with_system(spawn_background)
-                    .with_system(ui::spawn_ui)
-            )
-            .add_system_set(
-                SystemSet::on_exit(GameState::Asteroids)
-                    .with_system(ui::remove_ui)
-                    .with_system(player::remove_player)
-                    .with_system(remove_asteroids_atlas)
-                    .with_system(remove_asteroids
-                                 .before(remove_asteroids_atlas)
-                    )
-            )
-            .add_system_set(
-                SystemSet::on_update(GameState::Asteroids)
-                    .with_system(player::acceleration)
-                    .with_system(player::rotation
-                                 .after(player::acceleration)
-                    )
-                    .with_system(player::camera_follow
-                                 .after(player::acceleration)
-                    )
-                    .with_system(player::player_shoot_laser
-                                 .after(player::rotation)
-                    )
-                    .with_system(player::laser_movement)
-                    .with_system(player::laser_despawner
-                                 .after(player::laser_movement)
-                    )
-                    .with_system(asteroid_number_timer)
-                    .with_system(spawn_asteroid
-                                 .after(asteroid_number_timer)
-                    )
-                    .with_system(asteroid_rotation)
-                    .with_system(asteroid_movement)
-                    .with_system(asteroid_distance_cleanup)
-                    .with_system(handle_start_pause)
-            );
-    }
-}
-
-fn asteroids_setup(
+pub fn asteroids_setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>
@@ -92,7 +39,7 @@ fn asteroids_setup(
             });
 }
 
-fn remove_asteroids_atlas(
+pub fn remove_asteroids_atlas(
     mut commands: Commands,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     asteroids_atlas: Res<AsteroidsAtlas>
@@ -103,7 +50,7 @@ fn remove_asteroids_atlas(
     commands.remove_resource::<AsteroidsStats>();
 }
 
-fn asteroid_number_timer(mut asteroids_stats: ResMut<AsteroidsStats>, time: Res<Time>) {
+pub fn asteroid_number_timer(mut asteroids_stats: ResMut<AsteroidsStats>, time: Res<Time>) {
     asteroids_stats.spawn_timer.tick(time.delta());
 
     if asteroids_stats.spawn_timer.finished() {
@@ -114,11 +61,11 @@ fn asteroid_number_timer(mut asteroids_stats: ResMut<AsteroidsStats>, time: Res<
     }
 }
 
-fn spawn_asteroid(
+pub fn spawn_asteroid(
     mut commands: Commands,
     asteroids_atlas: Res<AsteroidsAtlas>,
     mut asteroids_stats: ResMut<AsteroidsStats>,
-    query: Query<&Transform, With<player::Player>>
+    query: Query<&Transform, With<Player>>
 ) {
 
     if asteroids_stats.current_number < asteroids_stats.target_number {
@@ -159,10 +106,10 @@ fn spawn_asteroid(
 
 }
 
-fn asteroid_distance_cleanup(
+pub fn asteroid_distance_cleanup(
     mut commands: Commands,
     asteroid_query: Query<(Entity, &Transform), With<Asteroid>>,
-    player_query: Query<&Transform, With<player::Player>>
+    player_query: Query<&Transform, With<Player>>
 ) {
 
     if !asteroid_query.is_empty() {
@@ -176,42 +123,20 @@ fn asteroid_distance_cleanup(
     }
 }
 
-fn remove_asteroids(mut commands: Commands, query: Query<Entity, With<Asteroid>>) {
+pub fn remove_asteroids(mut commands: Commands, query: Query<Entity, With<Asteroid>>) {
     query.for_each(|entity| {
         commands.entity(entity).despawn();
     });
 }
 
-fn spawn_background(mut commands: Commands, asset_server: Res<AssetServer>) {
-
-    let texture_handle = asset_server.load("images/stars.png");
-
-    commands
-        .spawn_bundle(SpriteBundle {
-            sprite: Sprite {
-                color: Color::WHITE,
-                custom_size: Some(Vec2::new(256.0, 256.0)),
-                anchor: bevy::sprite::Anchor::Center,
-                ..Default::default()
-            },
-            transform: Transform {
-                translation: Vec3::new(0.0, 0.0, 0.0),
-                ..Default::default()
-            },
-            texture: texture_handle,
-            ..Default::default()
-        });
-
-}
-
-fn asteroid_rotation(mut asteroid_query: Query<(&mut Transform, &Asteroid)>, time: Res<Time>) {
+pub fn asteroid_rotation(mut asteroid_query: Query<(&mut Transform, &Asteroid)>, time: Res<Time>) {
     asteroid_query.for_each_mut(|(mut transform, asteroid)| {
         let rotation = Quat::from_axis_angle(Vec3::new(0.0, 0.0, 1.0), asteroid.rotation * time.delta_seconds());
         transform.rotation = transform.rotation.mul_quat(rotation);
     });
 }
 
-fn asteroid_movement(mut asteroid_query: Query<(&mut Transform, &Asteroid)>, time: Res<Time>) {
+pub fn asteroid_movement(mut asteroid_query: Query<(&mut Transform, &Asteroid)>, time: Res<Time>) {
     asteroid_query.for_each_mut(|(mut transform, asteroid)| {
         transform.translation.x += asteroid.velocity.x * time.delta_seconds();
         transform.translation.y += asteroid.velocity.y * time.delta_seconds();

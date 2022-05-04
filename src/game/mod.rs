@@ -1,9 +1,9 @@
 use bevy::{prelude::*, app::PluginGroupBuilder};
 
+mod asteroids_game;
 mod menu;
 mod settings;
 mod pause;
-mod asteroids;
 
 mod button_colors {
     use bevy::prelude::Color;
@@ -35,9 +35,9 @@ impl PluginGroup for GamePlugins {
     fn build(&mut self, group: &mut PluginGroupBuilder) {
         group
             .add(BasePlugin)
+            .add(asteroids_game::AsteroidsPlugin)
             .add(menu::MenuPlugin)
-            .add(settings::SettingsPlugin)
             .add(pause::PausePlugin)
-            .add(asteroids::AsteroidsPlugin);
+            .add(settings::SettingsPlugin);
     }
 }

@@ -41,8 +41,11 @@ impl Plugin for AsteroidsPlugin {
                                  .after(player::rotation)
                     )
                     .with_system(player::laser_movement)
-                    .with_system(player::laser_despawner
+                    .with_system(player::laser_collision
                                  .after(player::laser_movement)
+                    )
+                    .with_system(player::laser_despawner
+                                 .after(player::laser_collision)
                     )
                     .with_system(asteroids::asteroid_number_timer)
                     .with_system(asteroids::spawn_asteroid

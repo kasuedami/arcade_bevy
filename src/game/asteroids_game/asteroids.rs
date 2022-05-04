@@ -17,7 +17,19 @@ pub struct AsteroidsAtlas {
 pub struct AsteroidsStats {
     target_number: u32,
     current_number: u32,
+    destroyed_number: u32,
     spawn_timer: Timer,
+}
+
+impl AsteroidsStats {
+    pub fn destroyed(&mut self) {
+        self.current_number -= 1;
+        self.destroyed_number += 1;
+    }
+
+    pub fn destroyed_number(&self) -> u32 {
+        self.destroyed_number
+    }
 }
 
 pub fn asteroids_setup(
@@ -35,6 +47,7 @@ pub fn asteroids_setup(
             AsteroidsStats {
                 target_number: 1,
                 current_number: 0,
+                destroyed_number: 0,
                 spawn_timer: Timer::from_seconds(5.0, true),
             });
 }

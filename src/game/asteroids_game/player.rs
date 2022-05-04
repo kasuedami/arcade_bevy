@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use std::time::Duration;
 
+use super::asteroids::{Asteroid, AsteroidsStats};
+
 const PLAYER_ACCELERATION: f32 = 50.0;
 const PLAYER_DECELERATION: f32 = 0.2;
 const PLAYER_ROT_ACC: f32 = 2.0;
@@ -219,6 +221,30 @@ pub fn laser_movement(mut query: Query<(&mut Transform, &LaserBullet)>, time: Re
         transform.translation.x += laser_bullet.velocity.x * time.delta_seconds();
         transform.translation.y += laser_bullet.velocity.y * time.delta_seconds();
     });
+}
+
+pub fn laser_collision(
+    mut commands: Commands,
+    laser_query: Query<(Entity, &Transform), With<LaserBullet>>,
+    asteroid_query: Query<(Entity, &Transform), With<Asteroid>>,
+    mut asteroid_stats: ResMut<AsteroidsStats>
+) {
+
+    if !laser_query.is_empty() && !asteroid_query.is_empty() {
+
+        laser_query.for_each(|(laser, laser_transform)| {
+            asteroid_query.for_each(|(asteroid, asteroid_transform)| {
+
+                if laser_transform.translation.distance(asteroid_transform.translation) < 25.0 {
+                    commands.entity(laser).despawn();
+                    commands.entity(asteroid).despawn();
+
+                    asteroid_stats.destroyed();
+                    println!("{}", asteroid_stats.destroyed_number());
+                }
+            });
+        });
+    }
 }
 
 pub fn laser_despawner(
